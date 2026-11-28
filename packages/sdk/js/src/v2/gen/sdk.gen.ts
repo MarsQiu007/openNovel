@@ -108,6 +108,7 @@ import type {
   MoveSessionDestination,
   NovelApprovalInput,
   NovelBindSessionInput,
+  NovelCleanupProposalBatchAcceptInput,
   NovelCreateAnnotationInput,
   NovelCreateAnnotationRoundInput,
   NovelCreateArcBeatInput,
@@ -289,6 +290,18 @@ import type {
   V2NovelCharactersResponses,
   V2NovelCharacterStatesErrors,
   V2NovelCharacterStatesResponses,
+  V2NovelCleanupProposalsAcceptBatchErrors,
+  V2NovelCleanupProposalsAcceptBatchResponses,
+  V2NovelCleanupProposalsAcceptErrors,
+  V2NovelCleanupProposalsAcceptResponses,
+  V2NovelCleanupProposalsCountsErrors,
+  V2NovelCleanupProposalsCountsResponses,
+  V2NovelCleanupProposalsListErrors,
+  V2NovelCleanupProposalsListResponses,
+  V2NovelCleanupProposalsRejectErrors,
+  V2NovelCleanupProposalsRejectResponses,
+  V2NovelCleanupProposalsRevertErrors,
+  V2NovelCleanupProposalsRevertResponses,
   V2NovelCreateAnnotationErrors,
   V2NovelCreateAnnotationResponses,
   V2NovelCreateAnnotationRoundErrors,
@@ -6095,6 +6108,243 @@ export class ReviewInbox extends HeyApiClient {
   }
 }
 
+export class CleanupProposals extends HeyApiClient {
+  /**
+   * List chapter cleanup proposals
+   *
+   * List import cleanup revision proposals filterable by status and chapter, with per-status counts.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      status?: string
+      chapterID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "status" },
+            { in: "query", key: "chapterID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelCleanupProposalsListResponses,
+      V2NovelCleanupProposalsListErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/cleanup-proposals",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get cleanup proposal badge counts
+   */
+  public counts<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelCleanupProposalsCountsResponses,
+      V2NovelCleanupProposalsCountsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/cleanup-proposals/counts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Accept a cleanup proposal
+   *
+   * Apply one pending proposal deterministically in a transaction: snapshot, anchor verification, mechanical replacement.
+   */
+  public accept<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      proposalID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "proposalID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCleanupProposalsAcceptResponses,
+      V2NovelCleanupProposalsAcceptErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/cleanup-proposals/{proposalID}/accept",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Accept low-risk cleanup proposals in batch
+   *
+   * Server-side filters low-risk proposals (replacement/cleanup kinds at confidence >= 0.9) and applies them atomically.
+   */
+  public acceptBatch<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCleanupProposalBatchAcceptInput: NovelCleanupProposalBatchAcceptInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelCleanupProposalBatchAcceptInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCleanupProposalsAcceptBatchResponses,
+      V2NovelCleanupProposalsAcceptBatchErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/cleanup-proposals/accept-batch",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reject a cleanup proposal
+   */
+  public reject<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      proposalID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "proposalID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCleanupProposalsRejectResponses,
+      V2NovelCleanupProposalsRejectErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/cleanup-proposals/{proposalID}/reject",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Revert an applied cleanup proposal
+   *
+   * Restore the pre-application snapshot content and mark the proposal reverted.
+   */
+  public revert<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      proposalID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "proposalID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCleanupProposalsRevertResponses,
+      V2NovelCleanupProposalsRevertErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/cleanup-proposals/{proposalID}/revert",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class MemoryFacts extends HeyApiClient {
   /**
    * List memory facts
@@ -10709,6 +10959,11 @@ export class Novel extends HeyApiClient {
   private _reviewInbox?: ReviewInbox
   get reviewInbox(): ReviewInbox {
     return (this._reviewInbox ??= new ReviewInbox({ client: this.client }))
+  }
+
+  private _cleanupProposals?: CleanupProposals
+  get cleanupProposals(): CleanupProposals {
+    return (this._cleanupProposals ??= new CleanupProposals({ client: this.client }))
   }
 
   private _memoryFacts?: MemoryFacts

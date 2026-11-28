@@ -42,6 +42,9 @@ import type {
   SettingImageUploadInput,
   SettingImageReorderInput,
   SettingImageNoteUpdateInput,
+  CleanupProposal,
+  CleanupProposalCounts,
+  CleanupProposalBatchAcceptInput,
 } from "@opennovel-ai/schema/novel"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -67,6 +70,14 @@ import {
   normalizeStyleRules,
   parseCharacterProfile,
   type CharacterProfile,
+  listCleanupProposals,
+  countCleanupProposals,
+  applyCleanupProposals,
+  rejectCleanupProposal,
+  revertCleanupProposal,
+  isLowRiskCleanup,
+  ChapterCleanupProposalTable,
+  type ChapterCleanupProposal,
 } from "@opennovel-ai/novel-store"
 import {
   getDb,
@@ -649,6 +660,147 @@ export function reviewInboxBatch(novelID: string, directory: string, input: Revi
   return Effect.gen(function* () {
     const service = yield* requireSettingReviewInboxNovel(novelID, directory)
     return yield* Effect.promise(() => service.batch(novelID, directory, input))
+  })
+}
+
+// ─── 章节清理修订提案（chapter-cleanup-review）───
+
+function toCleanupProposal(row: ChapterCleanupProposal): CleanupProposal {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    chapterId: row.chapter_id,
+    kind: row.kind,
+    paragraphIndex: row.paragraph_index,
+    startOffset: row.start_offset,
+    endOffset: row.end_offset,
+    quote: row.quote,
+    replacement: row.replacement,
+    reason: row.reason,
+    confidence: row.confidence,
+    status: row.status,
+    failReason: row.fail_reason,
+    appliedFromVersionId: row.applied_from_version_id,
+    appliedToVersionId: row.applied_to_version_id,
+    sourceRunId: row.source_run_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function requireCleanupNovel(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const novel = getDb(directory).select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+  })
+}
+
+export function cleanupProposalsList(novelID: string, directory: string, query: { status?: string; chapterID?: string }) {
+  return Effect.gen(function* () {
+    yield* requireCleanupNovel(novelID, directory)
+    const rows = listCleanupProposals(novelID, { status: query.status, chapterId: query.chapterID }, directory)
+    const countRows = countCleanupProposals(novelID, directory)
+    const counts: CleanupProposalCounts = {
+      pending: countRows["pending"] ?? 0,
+      applied: countRows["applied"] ?? 0,
+      rejected: countRows["rejected"] ?? 0,
+      failed: countRows["failed"] ?? 0,
+      reverted: countRows["reverted"] ?? 0,
+      total: Object.values(countRows).reduce((sum, n) => sum + n, 0),
+    }
+    return { items: rows.map(toCleanupProposal), total: rows.length, counts }
+  })
+}
+
+export function cleanupProposalsCounts(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    yield* requireCleanupNovel(novelID, directory)
+    const countRows = countCleanupProposals(novelID, directory)
+    return {
+      pending: countRows["pending"] ?? 0,
+      applied: countRows["applied"] ?? 0,
+      rejected: countRows["rejected"] ?? 0,
+      failed: countRows["failed"] ?? 0,
+      reverted: countRows["reverted"] ?? 0,
+      total: Object.values(countRows).reduce((sum, n) => sum + n, 0),
+    } satisfies CleanupProposalCounts
+  })
+}
+
+export function cleanupProposalAccept(novelID: string, directory: string, proposalID: string) {
+  return Effect.gen(function* () {
+    yield* requireCleanupNovel(novelID, directory)
+    const existing = getDb(directory)
+      .select({ status: ChapterCleanupProposalTable.status })
+      .from(ChapterCleanupProposalTable)
+      .where(eq(ChapterCleanupProposalTable.id, proposalID))
+      .get()
+    if (!existing || existing.status !== "pending") {
+      return { ok: false, accepted: [], failed: [], skipped: [], error: "提案不存在或不是待审状态" }
+    }
+    const result = applyCleanupProposals([proposalID], directory)
+    return {
+      ok: result.failed.length === 0,
+      accepted: result.applied,
+      failed: result.failed.map((f) => ({ id: f.id, reason: f.reason })),
+      skipped: [],
+    }
+  })
+}
+
+export function cleanupProposalsAcceptBatch(novelID: string, directory: string, input: CleanupProposalBatchAcceptInput) {
+  return Effect.gen(function* () {
+    yield* requireCleanupNovel(novelID, directory)
+    const skipped: Array<{ id: string; reason: string }> = []
+    const eligible: string[] = []
+    const db = getDb(directory)
+    for (const id of input.proposalIds) {
+      const row = db
+        .select()
+        .from(ChapterCleanupProposalTable)
+        .where(eq(ChapterCleanupProposalTable.id, id))
+        .get()
+      if (!row || row.novel_id !== novelID || row.status !== "pending") {
+        skipped.push({ id, reason: "状态已非待审" })
+        continue
+      }
+      if (!isLowRiskCleanup(row.kind, row.confidence)) {
+        skipped.push({ id, reason: "未达低风险标准（类型或置信度）" })
+        continue
+      }
+      eligible.push(id)
+    }
+    const result = eligible.length > 0 ? applyCleanupProposals(eligible, directory) : { applied: [], failed: [] }
+    return {
+      ok: result.failed.length === 0,
+      accepted: result.applied,
+      failed: result.failed.map((f) => ({ id: f.id, reason: f.reason })),
+      skipped,
+    }
+  })
+}
+
+export function cleanupProposalReject(novelID: string, directory: string, proposalID: string) {
+  return Effect.gen(function* () {
+    yield* requireCleanupNovel(novelID, directory)
+    try {
+      rejectCleanupProposal(proposalID, directory)
+      return { ok: true, accepted: [], failed: [], skipped: [] }
+    } catch (error) {
+      return { ok: false, accepted: [], failed: [], skipped: [], error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+}
+
+export function cleanupProposalRevert(novelID: string, directory: string, proposalID: string) {
+  return Effect.gen(function* () {
+    yield* requireCleanupNovel(novelID, directory)
+    try {
+      revertCleanupProposal(proposalID, directory)
+      return { ok: true, accepted: [], failed: [], skipped: [] }
+    } catch (error) {
+      return { ok: false, accepted: [], failed: [], skipped: [], error: error instanceof Error ? error.message : String(error) }
+    }
   })
 }
 
@@ -3222,6 +3374,45 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* reviewInboxBatch(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.cleanup-proposals.proposal-list", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cleanupProposalsList(ctx.params.novelID, location.directory, {
+            status: ctx.query.status,
+            chapterID: ctx.query.chapterID,
+          })
+        }),
+      )
+      .handle("novel.cleanup-proposals.proposal-counts", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cleanupProposalsCounts(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.cleanup-proposals.proposal-accept", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cleanupProposalAccept(ctx.params.novelID, location.directory, ctx.params.proposalID)
+        }),
+      )
+      .handle("novel.cleanup-proposals.proposal-accept-batch", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cleanupProposalsAcceptBatch(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.cleanup-proposals.proposal-reject", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cleanupProposalReject(ctx.params.novelID, location.directory, ctx.params.proposalID)
+        }),
+      )
+      .handle("novel.cleanup-proposals.proposal-revert", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cleanupProposalRevert(ctx.params.novelID, location.directory, ctx.params.proposalID)
         }),
       )
       .handle("novel.memory-facts.fact-list", (ctx) =>

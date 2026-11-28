@@ -318,6 +318,18 @@ import type {
   ServerNovelCandidateRejectOutput,
   ServerNovelCandidateMergeInput,
   ServerNovelCandidateMergeOutput,
+  ServerNovelProposalListInput,
+  ServerNovelProposalListOutput,
+  ServerNovelProposalCountsInput,
+  ServerNovelProposalCountsOutput,
+  ServerNovelProposalAcceptInput,
+  ServerNovelProposalAcceptOutput,
+  ServerNovelProposalAcceptBatchInput,
+  ServerNovelProposalAcceptBatchOutput,
+  ServerNovelProposalRejectInput,
+  ServerNovelProposalRejectOutput,
+  ServerNovelProposalRevertInput,
+  ServerNovelProposalRevertOutput,
   ServerNovelConflictResolveInput,
   ServerNovelConflictResolveOutput,
   ServerNovelStagedAcceptInput,
@@ -2723,6 +2735,79 @@ export function make(options: ClientOptions) {
               newId: input["newId"],
               allowNewCategory: input["allowNewCategory"],
             },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "proposal-list": (input: ServerNovelProposalListInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelProposalListOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/cleanup-proposals`,
+            query: { location: input["location"], status: input["status"], chapterID: input["chapterID"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "proposal-counts": (input: ServerNovelProposalCountsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelProposalCountsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/cleanup-proposals/counts`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "proposal-accept": (input: ServerNovelProposalAcceptInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelProposalAcceptOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/cleanup-proposals/${encodeURIComponent(input.proposalID)}/accept`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "proposal-accept-batch": (input: ServerNovelProposalAcceptBatchInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelProposalAcceptBatchOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/cleanup-proposals/accept-batch`,
+            query: { location: input["location"] },
+            body: { proposalIds: input["proposalIds"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "proposal-reject": (input: ServerNovelProposalRejectInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelProposalRejectOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/cleanup-proposals/${encodeURIComponent(input.proposalID)}/reject`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "proposal-revert": (input: ServerNovelProposalRevertInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelProposalRevertOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/cleanup-proposals/${encodeURIComponent(input.proposalID)}/revert`,
+            query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
             empty: false,

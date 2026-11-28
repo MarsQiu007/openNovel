@@ -6673,6 +6673,137 @@ export type ServerNovelCandidateMergeOutput = {
   readonly formatErrors?: ReadonlyArray<string>
 }
 
+export type ServerNovelProposalListInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly status?: string | undefined
+    readonly chapterID?: string | undefined
+  }["location"]
+  readonly status?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly status?: string | undefined
+    readonly chapterID?: string | undefined
+  }["status"]
+  readonly chapterID?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly status?: string | undefined
+    readonly chapterID?: string | undefined
+  }["chapterID"]
+}
+
+export type ServerNovelProposalListOutput = {
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly chapterId: string
+    readonly kind: string
+    readonly paragraphIndex: number
+    readonly startOffset: number
+    readonly endOffset: number
+    readonly quote: string
+    readonly replacement: string
+    readonly reason: string
+    readonly confidence: number
+    readonly status: string
+    readonly failReason: string | null
+    readonly appliedFromVersionId: string | null
+    readonly appliedToVersionId: string | null
+    readonly sourceRunId: string | null
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+  readonly total: number
+  readonly counts: {
+    readonly pending: number
+    readonly applied: number
+    readonly rejected: number
+    readonly failed: number
+    readonly reverted: number
+    readonly total: number
+  }
+}
+
+export type ServerNovelProposalCountsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelProposalCountsOutput = {
+  readonly pending: number
+  readonly applied: number
+  readonly rejected: number
+  readonly failed: number
+  readonly reverted: number
+  readonly total: number
+}
+
+export type ServerNovelProposalAcceptInput = {
+  readonly novelID: { readonly novelID: string; readonly proposalID: string }["novelID"]
+  readonly proposalID: { readonly novelID: string; readonly proposalID: string }["proposalID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelProposalAcceptOutput = {
+  readonly ok: boolean
+  readonly accepted: ReadonlyArray<string>
+  readonly failed: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly skipped: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly error?: string
+}
+
+export type ServerNovelProposalAcceptBatchInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly proposalIds: { readonly proposalIds: ReadonlyArray<string> }["proposalIds"]
+}
+
+export type ServerNovelProposalAcceptBatchOutput = {
+  readonly ok: boolean
+  readonly accepted: ReadonlyArray<string>
+  readonly failed: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly skipped: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly error?: string
+}
+
+export type ServerNovelProposalRejectInput = {
+  readonly novelID: { readonly novelID: string; readonly proposalID: string }["novelID"]
+  readonly proposalID: { readonly novelID: string; readonly proposalID: string }["proposalID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelProposalRejectOutput = {
+  readonly ok: boolean
+  readonly accepted: ReadonlyArray<string>
+  readonly failed: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly skipped: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly error?: string
+}
+
+export type ServerNovelProposalRevertInput = {
+  readonly novelID: { readonly novelID: string; readonly proposalID: string }["novelID"]
+  readonly proposalID: { readonly novelID: string; readonly proposalID: string }["proposalID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelProposalRevertOutput = {
+  readonly ok: boolean
+  readonly accepted: ReadonlyArray<string>
+  readonly failed: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly skipped: ReadonlyArray<{ readonly id: string; readonly reason: string }>
+  readonly error?: string
+}
+
 export type ServerNovelConflictResolveInput = {
   readonly novelID: { readonly novelID: string; readonly conflictID: string }["novelID"]
   readonly conflictID: { readonly novelID: string; readonly conflictID: string }["conflictID"]

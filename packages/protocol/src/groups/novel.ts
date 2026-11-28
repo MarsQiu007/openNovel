@@ -98,6 +98,10 @@ import {
   ReviewInboxStagedResolveResult,
   ReviewInboxBatchInput,
   ReviewInboxBatchResult,
+  CleanupProposalListResult,
+  CleanupProposalCounts,
+  CleanupProposalBatchAcceptInput,
+  CleanupProposalOperationResult,
   MemoryFactStatus,
   MemoryFactListResult,
   MemoryFactCounts,
@@ -1447,6 +1451,99 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.candidate-merge", summary: "Merge pending setting candidates" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.cleanup-proposals.proposal-list", `${root}/:novelID/cleanup-proposals`, {
+      params: { novelID: Schema.String },
+      query: Schema.Struct({
+        ...LocationQuery.fields,
+        status: Schema.String.pipe(Schema.optional),
+        chapterID: Schema.String.pipe(Schema.optional),
+      }),
+      success: CleanupProposalListResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.cleanup-proposals.list",
+          summary: "List chapter cleanup proposals",
+          description: "List import cleanup revision proposals filterable by status and chapter, with per-status counts.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.cleanup-proposals.proposal-counts", `${root}/:novelID/cleanup-proposals/counts`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: CleanupProposalCounts,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({ identifier: "v2.novel.cleanup-proposals.counts", summary: "Get cleanup proposal badge counts" }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.cleanup-proposals.proposal-accept", `${root}/:novelID/cleanup-proposals/:proposalID/accept`, {
+      params: { novelID: Schema.String, proposalID: Schema.String },
+      query: LocationQuery,
+      success: CleanupProposalOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.cleanup-proposals.accept",
+          summary: "Accept a cleanup proposal",
+          description: "Apply one pending proposal deterministically in a transaction: snapshot, anchor verification, mechanical replacement.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.cleanup-proposals.proposal-accept-batch", `${root}/:novelID/cleanup-proposals/accept-batch`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: CleanupProposalBatchAcceptInput,
+      success: CleanupProposalOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.cleanup-proposals.accept-batch",
+          summary: "Accept low-risk cleanup proposals in batch",
+          description: "Server-side filters low-risk proposals (replacement/cleanup kinds at confidence >= 0.9) and applies them atomically.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.cleanup-proposals.proposal-reject", `${root}/:novelID/cleanup-proposals/:proposalID/reject`, {
+      params: { novelID: Schema.String, proposalID: Schema.String },
+      query: LocationQuery,
+      success: CleanupProposalOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({ identifier: "v2.novel.cleanup-proposals.reject", summary: "Reject a cleanup proposal" }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.cleanup-proposals.proposal-revert", `${root}/:novelID/cleanup-proposals/:proposalID/revert`, {
+      params: { novelID: Schema.String, proposalID: Schema.String },
+      query: LocationQuery,
+      success: CleanupProposalOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.cleanup-proposals.revert",
+          summary: "Revert an applied cleanup proposal",
+          description: "Restore the pre-application snapshot content and mark the proposal reverted.",
+        }),
+      ),
   )
   .add(
     HttpApiEndpoint.post("novel.review-inbox.conflict-resolve", `${root}/:novelID/review-inbox/conflicts/:conflictID/resolve`, {

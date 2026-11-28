@@ -1059,6 +1059,71 @@ export const ReviewInboxBatchResult = Schema.Struct({
 }).annotate({ identifier: "Novel.ReviewInboxBatchResult" })
 export interface ReviewInboxBatchResult extends Schema.Schema.Type<typeof ReviewInboxBatchResult> {}
 
+// ─── 章节清理修订提案（chapter-cleanup-review）：落库 / 审阅 / 确定性应用 / 撤销 ───
+
+export const CleanupProposal = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  chapterId: Schema.String,
+  /** typo_replace | noise_remove | duplicate_remove | format_clean */
+  kind: Schema.String,
+  paragraphIndex: Schema.Int,
+  startOffset: Schema.Int,
+  endOffset: Schema.Int,
+  quote: Schema.String,
+  /** 删除类为空串 */
+  replacement: Schema.String,
+  reason: Schema.String,
+  confidence: Schema.Number,
+  /** pending | applied | rejected | failed | reverted */
+  status: Schema.String,
+  failReason: Schema.NullOr(Schema.String),
+  appliedFromVersionId: Schema.NullOr(Schema.String),
+  appliedToVersionId: Schema.NullOr(Schema.String),
+  sourceRunId: Schema.NullOr(Schema.String),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.CleanupProposal" })
+export interface CleanupProposal extends Schema.Schema.Type<typeof CleanupProposal> {}
+
+export const CleanupProposalCounts = Schema.Struct({
+  pending: Schema.Int,
+  applied: Schema.Int,
+  rejected: Schema.Int,
+  failed: Schema.Int,
+  reverted: Schema.Int,
+  total: Schema.Int,
+}).annotate({ identifier: "Novel.CleanupProposalCounts" })
+export interface CleanupProposalCounts extends Schema.Schema.Type<typeof CleanupProposalCounts> {}
+
+export const CleanupProposalListResult = Schema.Struct({
+  items: Schema.Array(CleanupProposal),
+  total: Schema.Int,
+  counts: CleanupProposalCounts,
+}).annotate({ identifier: "Novel.CleanupProposalListResult" })
+export interface CleanupProposalListResult extends Schema.Schema.Type<typeof CleanupProposalListResult> {}
+
+export const CleanupProposalBatchAcceptInput = Schema.Struct({
+  proposalIds: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.CleanupProposalBatchAcceptInput" })
+export interface CleanupProposalBatchAcceptInput extends Schema.Schema.Type<typeof CleanupProposalBatchAcceptInput> {}
+
+export const CleanupProposalItemFailure = Schema.Struct({
+  id: Schema.String,
+  reason: Schema.String,
+}).annotate({ identifier: "Novel.CleanupProposalItemFailure" })
+export interface CleanupProposalItemFailure extends Schema.Schema.Type<typeof CleanupProposalItemFailure> {}
+
+export const CleanupProposalOperationResult = Schema.Struct({
+  ok: Schema.Boolean,
+  accepted: Schema.Array(Schema.String),
+  failed: Schema.Array(CleanupProposalItemFailure),
+  /** 批量接受中未进入应用的提案（低风险过滤未通过或状态已非 pending） */
+  skipped: Schema.Array(CleanupProposalItemFailure),
+  error: optional(Schema.String),
+}).annotate({ identifier: "Novel.CleanupProposalOperationResult" })
+export interface CleanupProposalOperationResult extends Schema.Schema.Type<typeof CleanupProposalOperationResult> {}
+
 // ─── 记忆卡（memory-panel）：memory_fact 作者侧列表 / 手记 / 流转契约 ───
 
 export const MemoryFactStatus = Schema.Literals(["pending", "reviewed", "approved", "stale", "retired"])

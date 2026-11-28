@@ -44,6 +44,8 @@ import {
   createCharacterMapPin,
   createWorldMap,
   createWorldMapFeature,
+  createCleanupProposals,
+  applyCleanupProposals,
   getDb,
   ChapterTable,
   MemoryFactTable,
@@ -1991,6 +1993,45 @@ function seedMemoryFacts(ctx: ScenarioContext) {
   )
 }
 
+// 清理修订种子：一章含错字、格式残留与噪声段，落库三条提案（两条低风险 + 一条删除类）
+const CLEANUP_SEED_CONTENT = [
+  "他说道：“今天天气不错。”",
+  "这是一段完全正常的内容。",
+  "他昨天的昨候就到了。",
+  "　　本章节由爬虫自动生成免责声明。",
+].join("\n")
+const CLEANUP_NOISE_PARAGRAPH = "　　本章节由爬虫自动生成免责声明。"
+
+function seedCleanupProposals(ctx: ScenarioContext, opts: { preApply?: boolean } = {}) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx, "清理修订小说")
+      const chapter = yield* createChapterEndpoint(novelID, { title: "第一章" }, novelDirectory(ctx))
+      yield* updateChapterContent(novelID, chapter.id, { content: CLEANUP_SEED_CONTENT }, novelDirectory(ctx))
+      const proposalIDs = yield* Effect.try({
+        try: () => {
+          const ids = createCleanupProposals(
+            {
+              novelId: novelID,
+              chapterId: chapter.id,
+              proposals: [
+                { kind: "typo_replace", paragraph_index: 2, start_offset: 4, end_offset: 6, quote: "昨候", replacement: "时候", reason: "错别字", confidence: 0.98 },
+                { kind: "format_clean", paragraph_index: 3, start_offset: 0, end_offset: 2, quote: "　　", replacement: " ", reason: "段首全角空格残留", confidence: 0.95 },
+                { kind: "noise_remove", paragraph_index: 3, start_offset: 0, end_offset: CLEANUP_NOISE_PARAGRAPH.length, quote: CLEANUP_NOISE_PARAGRAPH },
+              ],
+            },
+            novelDirectory(ctx),
+          )
+          if (opts.preApply) applyCleanupProposals([ids[0]!], novelDirectory(ctx))
+          return ids
+        },
+        catch: (error) => new Error(`清理修订种子写入失败：${String(error)}`),
+      })
+      return { novelID, chapterID: chapter.id, proposalIDs }
+    }),
+  )
+}
+
 // 书籍导入练习样例：「第一章 风起 + 带半角标点正文」的 UTF-8 dataUrl（analyze/apply 场景共用同一字节）
 const EXERCISE_IMPORT_TEXT = "第一章 风起\n正文内容带半角标点,哦。"
 const EXERCISE_IMPORT_DATA_URL = `data:text/plain;base64,${Buffer.from(EXERCISE_IMPORT_TEXT, "utf8").toString("base64")}`
@@ -3036,6 +3077,105 @@ function novelScenarios(): Scenario[] {
         check(record.ok === true, "批处理应成功拆分计划")
         check(record.autoExecuted === 1, "纯格式修订应命中白名单直接执行")
         check((record.stagedIds as unknown[]).length === 0, "白名单操作不应产生暂存草案")
+      }),
+    // 清理修订端点组（chapter-cleanup-review）：列表/计数/接受/低风险批量/拒绝/撤销
+    http.protected
+      .get("/api/novel/{novelID}/cleanup-proposals", "novel.cleanup-proposals.proposal-list")
+      .seeded((ctx) => seedCleanupProposals(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/cleanup-proposals", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        array(record.items)
+        check((record.items as unknown[]).length === 3, "列表应含三条种子提案")
+        const counts = record.counts as Record<string, number>
+        check(counts.pending === 3 && counts.total === 3, "计数应与种子一致")
+        const first = (record.items as Array<Record<string, unknown>>).find((p) => p.kind === "typo_replace")
+        check(first !== undefined && first.status === "pending", "错字提案应以待审状态出现")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/cleanup-proposals/counts", "novel.cleanup-proposals.proposal-counts")
+      .seeded((ctx) => seedCleanupProposals(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/cleanup-proposals/counts", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, number>
+        check(record.pending === 3 && record.total === 3, "徽标计数应与种子一致")
+        check(record.applied === 0 && record.rejected === 0, "初始终态计数应为零")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/cleanup-proposals/{proposalID}/accept", "novel.cleanup-proposals.proposal-accept")
+      .seeded((ctx) => seedCleanupProposals(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/cleanup-proposals/{proposalID}/accept", {
+          novelID: ctx.state.novelID,
+          proposalID: ctx.state.proposalIDs[0]!,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "接受待审提案应成功")
+        check((record.accepted as unknown[]).length === 1, "应返回一条已应用提案")
+        check((record.failed as unknown[]).length === 0, "正常接受不应有失败项")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/cleanup-proposals/accept-batch", "novel.cleanup-proposals.proposal-accept-batch")
+      .seeded((ctx) => seedCleanupProposals(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/cleanup-proposals/accept-batch", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { proposalIds: ctx.state.proposalIDs },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check((record.accepted as unknown[]).length === 2, "批量应仅应用两条低风险提案")
+        const skipped = record.skipped as Array<Record<string, unknown>>
+        check(skipped.length === 1, "删除类提案应被跳过")
+        check((skipped[0]!.reason as string).includes("低风险"), "跳过原因应说明低风险过滤")
+        check((record.failed as unknown[]).length === 0, "种子提案锚点完好不应失败")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/cleanup-proposals/{proposalID}/reject", "novel.cleanup-proposals.proposal-reject")
+      .seeded((ctx) => seedCleanupProposals(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/cleanup-proposals/{proposalID}/reject", {
+          novelID: ctx.state.novelID,
+          proposalID: ctx.state.proposalIDs[2]!,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "拒绝待审提案应成功")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/cleanup-proposals/{proposalID}/revert", "novel.cleanup-proposals.proposal-revert")
+      .seeded((ctx) => seedCleanupProposals(ctx, { preApply: true }))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/cleanup-proposals/{proposalID}/revert", {
+          novelID: ctx.state.novelID,
+          proposalID: ctx.state.proposalIDs[0]!,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "撤销已应用提案应成功")
       }),
     // 记忆卡端点组（agent-memory-ui）：列表/计数/维护报告/手记/单卡流转
     http.protected

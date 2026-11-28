@@ -6286,6 +6286,59 @@ export type NovelReviewInboxCandidateMergeInput = {
   allowNewCategory?: boolean
 }
 
+export type NovelCleanupProposal = {
+  id: string
+  novelId: string
+  chapterId: string
+  kind: string
+  paragraphIndex: number
+  startOffset: number
+  endOffset: number
+  quote: string
+  replacement: string
+  reason: string
+  confidence: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  status: string
+  failReason: string
+  appliedFromVersionId: string
+  appliedToVersionId: string
+  sourceRunId: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelCleanupProposalCounts = {
+  pending: number
+  applied: number
+  rejected: number
+  failed: number
+  reverted: number
+  total: number
+}
+
+export type NovelCleanupProposalListResult = {
+  items: Array<NovelCleanupProposal>
+  total: number
+  counts: NovelCleanupProposalCounts
+}
+
+export type NovelCleanupProposalItemFailure = {
+  id: string
+  reason: string
+}
+
+export type NovelCleanupProposalOperationResult = {
+  ok: boolean
+  accepted: Array<string>
+  failed: Array<NovelCleanupProposalItemFailure>
+  skipped: Array<NovelCleanupProposalItemFailure>
+  error?: string
+}
+
+export type NovelCleanupProposalBatchAcceptInput = {
+  proposalIds: Array<string>
+}
+
 export type NovelReviewInboxConflictResolveInput = {
   action: "update_entry" | "keep_current" | "revise_chapters"
   content?: string
@@ -16667,6 +16720,287 @@ export type V2NovelReviewInboxCandidateMergeResponses = {
 
 export type V2NovelReviewInboxCandidateMergeResponse =
   V2NovelReviewInboxCandidateMergeResponses[keyof V2NovelReviewInboxCandidateMergeResponses]
+
+export type V2NovelCleanupProposalsListData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    status?: string
+    chapterID?: string
+  }
+  url: "/api/novel/{novelID}/cleanup-proposals"
+}
+
+export type V2NovelCleanupProposalsListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelCleanupProposalsListError =
+  V2NovelCleanupProposalsListErrors[keyof V2NovelCleanupProposalsListErrors]
+
+export type V2NovelCleanupProposalsListResponses = {
+  /**
+   * Novel.CleanupProposalListResult
+   */
+  200: NovelCleanupProposalListResult
+}
+
+export type V2NovelCleanupProposalsListResponse =
+  V2NovelCleanupProposalsListResponses[keyof V2NovelCleanupProposalsListResponses]
+
+export type V2NovelCleanupProposalsCountsData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/cleanup-proposals/counts"
+}
+
+export type V2NovelCleanupProposalsCountsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelCleanupProposalsCountsError =
+  V2NovelCleanupProposalsCountsErrors[keyof V2NovelCleanupProposalsCountsErrors]
+
+export type V2NovelCleanupProposalsCountsResponses = {
+  /**
+   * Novel.CleanupProposalCounts
+   */
+  200: NovelCleanupProposalCounts
+}
+
+export type V2NovelCleanupProposalsCountsResponse =
+  V2NovelCleanupProposalsCountsResponses[keyof V2NovelCleanupProposalsCountsResponses]
+
+export type V2NovelCleanupProposalsAcceptData = {
+  body?: never
+  path: {
+    novelID: string
+    proposalID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/cleanup-proposals/{proposalID}/accept"
+}
+
+export type V2NovelCleanupProposalsAcceptErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelCleanupProposalsAcceptError =
+  V2NovelCleanupProposalsAcceptErrors[keyof V2NovelCleanupProposalsAcceptErrors]
+
+export type V2NovelCleanupProposalsAcceptResponses = {
+  /**
+   * Novel.CleanupProposalOperationResult
+   */
+  200: NovelCleanupProposalOperationResult
+}
+
+export type V2NovelCleanupProposalsAcceptResponse =
+  V2NovelCleanupProposalsAcceptResponses[keyof V2NovelCleanupProposalsAcceptResponses]
+
+export type V2NovelCleanupProposalsAcceptBatchData = {
+  body: NovelCleanupProposalBatchAcceptInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/cleanup-proposals/accept-batch"
+}
+
+export type V2NovelCleanupProposalsAcceptBatchErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelCleanupProposalsAcceptBatchError =
+  V2NovelCleanupProposalsAcceptBatchErrors[keyof V2NovelCleanupProposalsAcceptBatchErrors]
+
+export type V2NovelCleanupProposalsAcceptBatchResponses = {
+  /**
+   * Novel.CleanupProposalOperationResult
+   */
+  200: NovelCleanupProposalOperationResult
+}
+
+export type V2NovelCleanupProposalsAcceptBatchResponse =
+  V2NovelCleanupProposalsAcceptBatchResponses[keyof V2NovelCleanupProposalsAcceptBatchResponses]
+
+export type V2NovelCleanupProposalsRejectData = {
+  body?: never
+  path: {
+    novelID: string
+    proposalID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/cleanup-proposals/{proposalID}/reject"
+}
+
+export type V2NovelCleanupProposalsRejectErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelCleanupProposalsRejectError =
+  V2NovelCleanupProposalsRejectErrors[keyof V2NovelCleanupProposalsRejectErrors]
+
+export type V2NovelCleanupProposalsRejectResponses = {
+  /**
+   * Novel.CleanupProposalOperationResult
+   */
+  200: NovelCleanupProposalOperationResult
+}
+
+export type V2NovelCleanupProposalsRejectResponse =
+  V2NovelCleanupProposalsRejectResponses[keyof V2NovelCleanupProposalsRejectResponses]
+
+export type V2NovelCleanupProposalsRevertData = {
+  body?: never
+  path: {
+    novelID: string
+    proposalID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/cleanup-proposals/{proposalID}/revert"
+}
+
+export type V2NovelCleanupProposalsRevertErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelCleanupProposalsRevertError =
+  V2NovelCleanupProposalsRevertErrors[keyof V2NovelCleanupProposalsRevertErrors]
+
+export type V2NovelCleanupProposalsRevertResponses = {
+  /**
+   * Novel.CleanupProposalOperationResult
+   */
+  200: NovelCleanupProposalOperationResult
+}
+
+export type V2NovelCleanupProposalsRevertResponse =
+  V2NovelCleanupProposalsRevertResponses[keyof V2NovelCleanupProposalsRevertResponses]
 
 export type V2NovelReviewInboxConflictResolveData = {
   body: NovelReviewInboxConflictResolveInput
