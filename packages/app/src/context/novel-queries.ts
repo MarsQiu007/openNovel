@@ -234,6 +234,10 @@ export const novelKeys = {
     ["novel", "review-inbox-counts", directory, novelID] as const,
   "review-inbox-items": (directory: string, novelID: string, source: string, limit: number, showProcessed: boolean) =>
     ["novel", "review-inbox-items", directory, novelID, source, limit, showProcessed] as const,
+  "cleanup-proposal-counts": (directory: string, novelID: string) =>
+    ["novel", "cleanup-proposal-counts", directory, novelID] as const,
+  "cleanup-proposal-items": (directory: string, novelID: string, status: string) =>
+    ["novel", "cleanup-proposal-items", directory, novelID, status] as const,
   "memory-fact-counts": (directory: string, novelID: string) =>
     ["novel", "memory-fact-counts", directory, novelID] as const,
   "memory-fact-items": (directory: string, novelID: string, filter: string, limit: number) =>
@@ -2514,6 +2518,39 @@ export function useReviewInboxItems(
         limit: limit(),
         offset: 0,
         showProcessed: showProcessed?.() ? "true" : undefined,
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+// ─── 章节清理修订提案（chapter-cleanup-review）───
+
+export function useCleanupProposalCounts(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["cleanup-proposal-counts"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["proposal-counts"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useCleanupProposals(novelID: Accessor<string>, status: Accessor<string | null>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["cleanup-proposal-items"](sdk().directory, novelID(), status() ?? "all"),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["proposal-list"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        status: status() ?? undefined,
       }),
     enabled: !!novelID(),
   }))

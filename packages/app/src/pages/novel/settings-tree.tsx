@@ -16,6 +16,7 @@ import { useLanguage } from "@/context/language"
 import {
   useCreateWorldEntry,
   useCharacters,
+  useCleanupProposalCounts,
   useMemoryFactCounts,
   useReviewInboxCounts,
   useWorldEntries,
@@ -42,6 +43,8 @@ export function SettingsTree(props: SettingsTreeProps) {
   const createWorld = useCreateWorldEntry()
   // 「整理」节点待审徽标：计数 query 随收件箱操作失效联动，清零后不显示
   const inboxCounts = useReviewInboxCounts(props.novelID)
+  // 「清理修订」节点待审徽标（chapter-cleanup-review），随修订操作失效联动
+  const cleanupCounts = useCleanupProposalCounts(props.novelID)
   // 「记忆」节点待办徽标（pending+reviewed+stale），同收件箱失效联动
   const memoryCounts = useMemoryFactCounts(props.novelID)
 
@@ -310,6 +313,14 @@ export function SettingsTree(props: SettingsTreeProps) {
                 onClick={() => props.onSelect({ kind: "organization" })}
                 depth={1}
                 badge={inboxCounts.data?.total}
+              />
+              <NodeRow
+                label={language.t("novel.settings.tree.cleanup")}
+                icon="broom"
+                active={isSelected({ kind: "cleanup" })}
+                onClick={() => props.onSelect({ kind: "cleanup" })}
+                depth={1}
+                badge={cleanupCounts.data?.pending}
               />
               <NodeRow
                 label={language.t("novel.settings.tree.memory")}

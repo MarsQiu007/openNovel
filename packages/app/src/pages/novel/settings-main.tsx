@@ -23,6 +23,7 @@ import { WorldEntryDetail } from "./world-entry-detail"
 import { StyleGuideEditor } from "./style-guide-editor"
 import { NovelSoulEditor } from "./novel-soul-editor"
 import { SettingReviewInboxPanel } from "./setting-review-inbox"
+import { CleanupReviewPanel } from "./cleanup-review-panel"
 import { MemoryPanel } from "./memory-panel"
 import { SettingGallery } from "./setting-gallery"
 import { PanelForeshadow } from "./panel-foreshadow"
@@ -147,6 +148,7 @@ export function SettingsMain(props: SettingsMainProps) {
       active: () => kindIs("organization"),
       render: () => <SettingReviewInboxPanel novelID={props.novelID} />,
     },
+    { key: "cleanup", active: () => kindIs("cleanup"), render: () => <CleanupReviewPanel novelID={props.novelID} /> },
     { key: "memory", active: () => kindIs("memory"), render: () => <MemoryPanel novelID={props.novelID} /> },
     {
       key: "world:list",
