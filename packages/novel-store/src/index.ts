@@ -957,7 +957,10 @@ CREATE TABLE IF NOT EXISTS technique_feedback (id text PRIMARY KEY, technique_id
 CREATE INDEX IF NOT EXISTS technique_feedback_technique_id_idx ON technique_feedback(technique_id);
 CREATE INDEX IF NOT EXISTS technique_feedback_chapter_id_idx ON technique_feedback(chapter_id);
 CREATE TABLE IF NOT EXISTS technique_shadow_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, scene_type text NOT NULL, query_text text DEFAULT '' NOT NULL, retrieved_technique_ids text DEFAULT '[]' NOT NULL, retrieved_technique_names text DEFAULT '[]' NOT NULL, created_at integer NOT NULL);
-CREATE INDEX IF NOT EXISTS technique_shadow_log_novel_id_idx ON technique_shadow_log(novel_id);`
+CREATE INDEX IF NOT EXISTS technique_shadow_log_novel_id_idx ON technique_shadow_log(novel_id);
+CREATE TABLE IF NOT EXISTS chapter_cleanup_proposals (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, kind text NOT NULL, paragraph_index integer NOT NULL, start_offset integer NOT NULL, end_offset integer NOT NULL, quote text NOT NULL, replacement text DEFAULT '' NOT NULL, reason text DEFAULT '' NOT NULL, confidence real DEFAULT 1 NOT NULL, status text DEFAULT 'pending' NOT NULL, fail_reason text, applied_from_version_id text, applied_to_version_id text, source_run_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS chapter_cleanup_proposals_novel_status_idx ON chapter_cleanup_proposals(novel_id, status);
+CREATE INDEX IF NOT EXISTS chapter_cleanup_proposals_chapter_idx ON chapter_cleanup_proposals(chapter_id, status);`
 // 世界地图局部平面坐标固定为 0..10000，几何类型由应用层和 SQLite CHECK 共同约束。
 CREATE_TABLES_SQL += `
 CREATE TABLE IF NOT EXISTS world_maps (id text PRIMARY KEY, novel_id text NOT NULL, title text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text NOT NULL CHECK (status IN ('draft', 'active')), created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
@@ -3649,6 +3652,44 @@ export async function cancelWritingBatch(novelId: string, directory?: string | n
   withTransaction(getDb(directory), (tx) => cancelWritingBatchTx(tx, novelId))
 }
 
+/** 章节清理修订提案（chapter-cleanup-review）：导入整理纠错建议的可审批落库实体。 */
+export const ChapterCleanupProposalTable = sqliteTable(
+  "chapter_cleanup_proposals",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    chapter_id: text().notNull(),
+    /** typo_replace | noise_remove | duplicate_remove | format_clean */
+    kind: text().notNull(),
+    paragraph_index: integer().notNull(),
+    start_offset: integer().notNull(),
+    end_offset: integer().notNull(),
+    quote: text().notNull(),
+    replacement: text().notNull().default(""),
+    reason: text().notNull().default(""),
+    confidence: real().notNull().default(1),
+    /** pending | applied | rejected | failed | reverted */
+    status: text().notNull().default("pending"),
+    fail_reason: text(),
+    applied_from_version_id: text(),
+    applied_to_version_id: text(),
+    source_run_id: text(),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    index("chapter_cleanup_proposals_novel_status_idx").on(table.novel_id, table.status),
+    index("chapter_cleanup_proposals_chapter_idx").on(table.chapter_id, table.status),
+  ],
+)
+
+export type ChapterCleanupProposal = typeof ChapterCleanupProposalTable.$inferSelect
+
+export * from "./cleanup-proposals.js"
 export * from "./manual-edit-sync.js"
 export * from "./segment-rollup.js"
 export * from "./entity-refs.js"
