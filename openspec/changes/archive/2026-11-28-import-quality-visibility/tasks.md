@@ -35,3 +35,4 @@
 ### 归档后收尾修复
 
 - e2e mock-server 登记 `/api/novel/pending-summary`（空 items 形状）——新增端点未登记默认路由时书架查询 404 炸 e2e 书架链路
+- usePendingSummary 误用 novel workspace 的 useSDK（书架页无该 provider，SDK context 报错整页崩溃、e2e 书架入口用例 10 个连挂）；归一为 useNovelClient（与 useNovels 同形态）

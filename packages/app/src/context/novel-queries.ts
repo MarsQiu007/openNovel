@@ -2557,10 +2557,10 @@ export function useCleanupProposals(novelID: Accessor<string>, status: Accessor<
   }))
 }
 
-/** 书级待审聚合（import-quality-visibility）：一次请求覆盖该目录全部书的书架角标数据。 */
+/** 书级待审聚合（import-quality-visibility）：一次请求覆盖该目录全部书的书架角标数据。
+ *  书架无 novel workspace SDK provider，走 novelClientFor（与 useNovels 同形态）。 */
 export function usePendingSummary(bookshelfDirectory: Accessor<string>) {
   const client = useNovelClient()
-  const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["pending-summary"](bookshelfDirectory()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
