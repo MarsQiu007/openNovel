@@ -254,8 +254,15 @@ describe("McpRegister", () => {
         const registry = yield* ToolRegistry.Service
         yield* waitDefinition(registry, "mcp_2srv_echo")
 
-        // 服务器 mcp_2srv 的工具键恰好撞上 2srv 加前缀后的注册名，后到者追加序号
-        const names = (yield* registry.materialize()).definitions.map((def) => def.name)
+        // 服务器 mcp_2srv 的工具键恰好撞上 2srv 加前缀后的注册名，后到者追加序号；
+        // 两个服务器的定义落地顺序不定，撞名结果轮询等待（waitDefinition 同模式）
+        const names = (yield* registry.materialize().pipe(
+          Effect.filterOrElse(
+            (materialized) => materialized.definitions.some((def) => def.name === "mcp_2srv_echo_1"),
+            () => Effect.fail(new Error("collided name not yet materialized")),
+          ),
+          Effect.retry(retry),
+        )).definitions.map((def) => def.name)
         expect(names).toContain("mcp_2srv_echo_1")
       }).pipe(
         Effect.provide(
