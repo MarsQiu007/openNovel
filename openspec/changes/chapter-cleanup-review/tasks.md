@@ -32,11 +32,20 @@
 
 ## 5. 验证与收尾
 
-- [ ] 5.1 检查未引入同类、冗余、无用代码；受影响包 `bun typecheck` 与 oxlint 通过、`bun test` 聚焦通过；`packages/opennovel` 运行 `bun run test:httpapi`（coverage 模式）
+- [x] 5.1 检查未引入同类、冗余、无用代码；受影响包 `bun typecheck` 与 oxlint 通过、`bun test` 聚焦通过；`packages/opennovel` 运行 `bun run test:httpapi`（coverage 模式）
 - [x] 5.2 冒烟验证（隔离环境自证）：证据链由三层自动化覆盖——(a) novel-store `test/cleanup-proposals.test.ts`（建书造错字正文→落库→应用后正文机械变更且快照/应用后版本行齐备、锚点漂移标 failed、批量异常整体回滚、撤销恢复应用前正文）；(b) httpapi-exercise 六场景（真实 server：列表/计数与种子一致、单条接受 accepted=1、批量仅应用两条低风险且删除类 skipped 含低风险理由、拒绝、撤销 ok）；(c) plugin `test/novel-writer/cleanup-tools.test.ts`（工具落库 pending 且正文不变、校验拒绝、list_cleanup 计数输出）
-- [ ] 5.3 全量回归（turbo typecheck 全量 + 受影响包全量测试）后按 Workflow follow-up 收尾：记录 Implementation Commits → `openspec validate --strict` → 同步主 specs → 归档
+- [x] 5.3 全量回归（turbo typecheck 全量 + 受影响包全量测试）后按 Workflow follow-up 收尾：记录 Implementation Commits → `openspec validate --strict` → 同步主 specs → 归档
 
 ## Workflow follow-up
 
 - 契约变更已在任务 2.4 覆盖（generate + codemode fixture）
 - 全部任务完成后按仓库 OpenSpec Completion 流程收尾并关闭 Issue #34
+
+## Implementation Commits
+
+- `9e3a8f22b5` docs(openspec): 建立 chapter-cleanup-review 提案
+- `065eb2c670` feat(novel-store): 章节清理修订提案数据层
+- `36c17c4b6b` feat(schema,protocol,server): 清理修订提案契约与六个端点
+- `f3dc6614c2` feat(plugin): propose_cleanup/list_cleanup 工具与 director 整理指令更新
+- `1ed2996985` feat(app): 清理修订审阅面板与设定树挂载
+- `143cd0b5b6` test(plugin): 同步 director 整理指令断言至修订提案落库文案
