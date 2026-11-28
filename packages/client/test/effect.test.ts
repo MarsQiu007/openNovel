@@ -103,6 +103,11 @@ test("session methods retain decoded Effect inputs and outputs", async () => {
     if (request.method === "POST" && url.endsWith("/api/session")) {
       return Effect.succeed(HttpClientResponse.fromWeb(request, Response.json(session)))
     }
+    if (request.method === "POST" && url.endsWith("/api/session/ses_test/compact")) {
+      return Effect.succeed(
+        HttpClientResponse.fromWeb(request, Response.json({ data: { messageID: "msg_compact", status: "queued" } })),
+      )
+    }
     if (request.method === "POST") {
       return Effect.succeed(HttpClientResponse.fromWeb(request, new Response(null, { status: 204 })))
     }
@@ -127,7 +132,7 @@ test("session methods retain decoded Effect inputs and outputs", async () => {
       prompt: Prompt.make({ text: "Hello" }),
       resume: false,
     })
-    yield* client.sessions.compact({ sessionID: Session.ID.make("ses_test") })
+    const compacted = yield* client.sessions.compact({ sessionID: Session.ID.make("ses_test") })
     yield* client.sessions.wait({ sessionID: Session.ID.make("ses_test") })
     const context = yield* client.sessions.context({ sessionID: Session.ID.make("ses_test") })
     const history = yield* client.sessions.history({
@@ -150,7 +155,7 @@ test("session methods retain decoded Effect inputs and outputs", async () => {
       sessionID: Session.ID.make("ses_test"),
       messageID: SessionMessage.ID.make("msg_model"),
     })
-    return { page, active, created, admitted, context, history, historyNext, events, message }
+    return { page, active, created, admitted, compacted, context, history, historyNext, events, message }
   }).pipe(Effect.provideService(HttpClient.HttpClient, httpClient), Effect.runPromise)
 
   expect(DateTime.toEpochMillis(result.page.data[0].time.created)).toBe(1_717_171_717_000)
@@ -161,6 +166,7 @@ test("session methods retain decoded Effect inputs and outputs", async () => {
   expect(Object.getPrototypeOf(result.admitted)).toBe(Object.prototype)
   expect(Object.getPrototypeOf(result.admitted.prompt)).toBe(Object.prototype)
   expect(DateTime.toEpochMillis(result.admitted.timeCreated)).toBe(1_717_171_717_000)
+  expect(result.compacted).toEqual({ messageID: "msg_compact", status: "queued" })
   expect(result.context).toEqual([])
   expect(DateTime.toEpochMillis(result.history.data[0].data.timestamp)).toBe(1_717_171_717_000)
   expect(result.history).toEqual(expect.objectContaining({ hasMore: true }))

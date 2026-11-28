@@ -108,6 +108,9 @@ test("session methods use the public HTTP contract", async () => {
         )
       }
       if (url.includes("/prompt")) return Response.json(admission)
+      if (url.endsWith("/api/session/ses_test/compact")) {
+        return Response.json({ data: { messageID: "msg_compact", status: "queued" } })
+      }
       if (url.includes("/context")) return Response.json({ data: [] })
       if (url.includes("/message/")) return Response.json({ data: modelSwitchedMessage })
       if (url.endsWith("/api/session/active")) return Response.json({ data: { ses_test: { type: "running" } } })
@@ -130,7 +133,7 @@ test("session methods use the public HTTP contract", async () => {
     prompt: { text: "Hello" },
     resume: false,
   })
-  await client.sessions.compact({ sessionID: "ses_test" })
+  const compacted = await client.sessions.compact({ sessionID: "ses_test" })
   await client.sessions.wait({ sessionID: "ses_test" })
   const context = await client.sessions.context({ sessionID: "ses_test" })
   const history = await client.sessions.history({ sessionID: "ses_test", after: 0, limit: 1 })
@@ -147,6 +150,7 @@ test("session methods use the public HTTP contract", async () => {
   expect(active).toEqual({ ses_test: { type: "running" } })
   expect(created.id).toBe("ses_test")
   expect(admitted.id).toBe("msg_test")
+  expect(compacted).toEqual({ messageID: "msg_compact", status: "queued" })
   expect(context).toEqual([])
   expect(history).toEqual({ data: [modelSwitchedEvent], hasMore: true })
   expect(historyNext).toEqual({ data: [], hasMore: false })

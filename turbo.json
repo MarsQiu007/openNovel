@@ -32,6 +32,10 @@
     "@opennovel-ai/session-ui#test": {
       "dependsOn": ["^build"],
       "outputs": []
+    },
+    "@opennovel-ai/client#test": {
+      "dependsOn": ["^build"],
+      "outputs": []
     }
   }
 }
