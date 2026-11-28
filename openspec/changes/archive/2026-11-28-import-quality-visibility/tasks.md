@@ -31,3 +31,7 @@
 - `fff5cdc841` docs(openspec): 建立 import-quality-visibility 提案
 - `30e5d8c7e5` feat(schema,protocol,server): 书级待审聚合端点 pending-summary
 - `f0ea5aac78` feat(app): 书架待审角标直达审阅面板与 director 汇总指引升级
+
+### 归档后收尾修复
+
+- e2e mock-server 登记 `/api/novel/pending-summary`（空 items 形状）——新增端点未登记默认路由时书架查询 404 炸 e2e 书架链路

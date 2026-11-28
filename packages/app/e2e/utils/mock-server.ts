@@ -143,6 +143,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     if (path === "/api/novel/session-bindings" || path === "/api/technique" || path.endsWith("/annotations")) {
       return json(route, [])
     }
+    if (path === "/api/novel/pending-summary") return json(route, { items: [] })
     if (path === "/api/sync/run") return json(route, { results: [] })
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
